@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatWave | Real-Time Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+</head>
+<body class="chat-page">
+
+    <div class="chat-container">
+        <header class="chat-header">
+            <div class="brand">
+                <div class="brand-icon">💬</div>
+                <div>
+                    <h1>ChatWave</h1>
+                    <p>Real-time messaging</p>
+                </div>
+            </div>
+
+            <div class="user-info">
+                <span>👤 {{ username }}</span>
+                <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
+            </div>
+        </header>
+
+        <main class="chat-main">
+            <aside class="chat-sidebar">
+                <h2>Chat Rooms</h2>
+                <button class="room-button active" data-room="general">
+                    🌐 General
+                </button>
+                <p class="room-help">
+                    Choose a room and chat with other users in the same room.
+                </p>
+            </aside>
+
+            <section class="chat-content">
+                <div class="room-header">
+                    <div>
+                        <h2>#general</h2>
+                        <p>Messages appear instantly</p>
+                    </div>
+                    <span class="online-label">● Connected</span>
+                </div>
+
+                <div id="messages" class="messages">
+                    <div class="welcome-message">
+                        <h3>Welcome to ChatWave! 👋</h3>
+                        <p>Send your first message to start the conversation.</p>
+                    </div>
+                </div>
+
+                <form id="message-form" class="message-form">
+                    <input
+                        type="text"
+                        id="message-input"
+                        placeholder="Type your message..."
+                        maxlength="1000"
+                        autocomplete="off"
+                        required
+                    >
+                    <button type="submit" id="send-button">Send ➤</button>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const socket = io({
+    transports: ["polling"]
+});
+        const messagesContainer = document.getElementById("messages");
+        const messageForm = document.getElementById("message-form");
+        const messageInput = document.getElementById("message-input");
+
+        let currentRoom = "general";
+
+        function joinCurrentRoom() {
+            socket.emit("join", { room: currentRoom });
+        }
+
+        socket.on("connect", () => {
+            joinCurrentRoom();
+        });
+
+        function addMessage(username, message, isSystem = false) {
+            const welcome = messagesContainer.querySelector(".welcome-message");
+            if (welcome) welcome.remove();
+
+            const item = document.createElement("div");
+            item.className = isSystem ? "system-message" : "message-item";
+
+            if (!isSystem) {
+                const sender = document.createElement("strong");
+                sender.className = "message-sender";
+                sender.textContent = username;
+
+                const content = document.createElement("p");
+                content.className = "message-text";
+                content.textContent = message;
+
+                item.appendChild(sender);
+                item.appendChild(content);
+            } else {
+                item.textContent = message;
+            }
+
+            messagesContainer.appendChild(item);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        messageForm.addEventListener("submit", (event) => {
+            event.preventDefault();
+
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            socket.emit("send_message", {
+                room: currentRoom,
+                message: message
+            });
+
+            messageInput.value = "";
+            messageInput.focus();
+        });
+
+        socket.on("receive_message", (data) => {
+            addMessage(data.username, data.message);
+        });
+
+        socket.on("system_message", (data) => {
+            addMessage("", data.message, true);
+        });
+
+        document.querySelectorAll(".room-button").forEach((button) => {
+            button.addEventListener("click", () => {
+                currentRoom = button.dataset.room;
+
+                document.querySelectorAll(".room-button").forEach((item) => {
+                    item.classList.remove("active");
+                });
+
+                button.classList.add("active");
+                document.querySelector(".room-header h2").textContent =
+                    "#" + currentRoom;
+
+                messagesContainer.innerHTML = "";
+                joinCurrentRoom();
+            });
+        });
+    </script>
+
+</body>
+</html>
